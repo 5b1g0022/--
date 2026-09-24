@@ -1,0 +1,1775 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>自動排班系統</title>
+
+    <!-- SheetJS：讀取與產生 Excel -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family:
+                "Microsoft JhengHei",
+                Arial,
+                sans-serif;
+
+            background: #f4f6f9;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+
+        .header {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+
+            box-shadow:
+                0 2px 10px rgba(0,0,0,0.08);
+        }
+
+        .header h1 {
+            margin: 0 0 8px 0;
+            font-size: 28px;
+        }
+
+        .header p {
+            margin: 0;
+            color: #666;
+        }
+
+        .control-panel {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+
+            box-shadow:
+                0 2px 10px rgba(0,0,0,0.08);
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .form-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .form-group label {
+            font-weight: bold;
+        }
+
+        input[type="number"] {
+            width: 80px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+
+        input[type="file"] {
+            padding: 10px;
+        }
+
+        button {
+            border: none;
+            border-radius: 6px;
+            padding: 11px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+
+        .btn-success {
+            background: #16a34a;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #15803d;
+        }
+
+        .btn-primary:disabled {
+            background: #aaa;
+            cursor: not-allowed;
+        }
+
+        .status {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 6px;
+            display: none;
+        }
+
+        .status.success {
+            display: block;
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status.error {
+            display: block;
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .result-section {
+            display: none;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+
+            box-shadow:
+                0 2px 10px rgba(0,0,0,0.08);
+        }
+
+        .card h2 {
+            margin-top: 0;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            min-width: 700px;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        th {
+            background: #f1f5f9;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+
+        .name-cell {
+            font-weight: bold;
+            background: #f8fafc;
+            position: sticky;
+            left: 0;
+            z-index: 1;
+        }
+
+        th:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 3;
+        }
+
+        .work-cell {
+            background: #ecfdf5;
+            color: #166534;
+            font-weight: bold;
+        }
+
+        .rest-cell {
+            color: #999;
+            background: #fafafa;
+        }
+
+        .shortage {
+            color: #dc2626;
+            font-weight: bold;
+        }
+
+        .download-area {
+            text-align: center;
+            padding: 20px;
+        }
+
+        @media (max-width: 700px) {
+
+            .container {
+                margin: 10px auto;
+                padding: 0 10px;
+            }
+
+            .header h1 {
+                font-size: 22px;
+            }
+
+            .control-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .form-group {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            button {
+                width: 100%;
+            }
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+<div class="container">
+
+
+    <!-- ================================================= -->
+    <!-- 標題 -->
+    <!-- ================================================= -->
+
+    <div class="header">
+
+        <h1>📅 自動排班系統</h1>
+
+        <p>
+            上傳 Excel 後，系統會按照工作天數與總工時自動安排人員。
+        </p>
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- 設定 -->
+    <!-- ================================================= -->
+
+    <div class="control-panel">
+
+        <div class="control-row">
+
+
+            <div class="form-group">
+
+                <label for="requiredPeople">
+                    每天需要人數：
+                </label>
+
+                <input
+                    type="number"
+                    id="requiredPeople"
+                    value="3"
+                    min="1"
+                    max="100"
+                >
+
+            </div>
+
+
+            <div class="form-group">
+
+                <label>
+                    上傳 Excel：
+                </label>
+
+                <input
+                    type="file"
+                    id="fileInput"
+                    accept=".xlsx,.xls"
+                >
+
+            </div>
+
+
+            <button
+                class="btn-primary"
+                id="runButton"
+                disabled
+                onclick="runSchedule()"
+            >
+                ▶ 開始自動排班
+            </button>
+
+
+        </div>
+
+
+        <div id="status"
+             class="status">
+        </div>
+
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- 結果 -->
+    <!-- ================================================= -->
+
+    <div
+        id="resultSection"
+        class="result-section"
+    >
+
+
+        <!-- ================================================= -->
+        <!-- 總排班表 -->
+        <!-- ================================================= -->
+
+        <div class="card">
+
+            <h2>📋 總排班表</h2>
+
+            <div
+                id="totalSchedule"
+                class="table-wrapper"
+            >
+            </div>
+
+        </div>
+
+
+        <!-- ================================================= -->
+        <!-- 員工統計 -->
+        <!-- ================================================= -->
+
+        <div class="card">
+
+            <h2>📊 員工統計</h2>
+
+            <div
+                id="employeeStats"
+                class="table-wrapper"
+            >
+            </div>
+
+        </div>
+
+
+        <!-- ================================================= -->
+        <!-- 缺人紀錄 -->
+        <!-- ================================================= -->
+
+        <div class="card">
+
+            <h2>⚠ 缺人紀錄</h2>
+
+            <div
+                id="shortageRecords"
+                class="table-wrapper"
+            >
+            </div>
+
+        </div>
+
+
+        <!-- ================================================= -->
+        <!-- 下載 -->
+        <!-- ================================================= -->
+
+        <div class="card">
+
+            <div class="download-area">
+
+                <button
+                    class="btn-success"
+                    onclick="downloadExcel()"
+                >
+                    📥 下載排班結果.xlsx
+                </button>
+
+            </div>
+
+        </div>
+
+
+    </div>
+
+
+</div>
+
+
+<script>
+
+
+// =====================================================
+// 全域變數
+// =====================================================
+
+let originalData = [];
+
+let dateColumns = [];
+
+let schedule = [];
+
+let workDays = {};
+
+let workHours = {};
+
+let shortageList = [];
+
+let workbook;
+
+
+let fileInput =
+    document.getElementById("fileInput");
+
+let runButton =
+    document.getElementById("runButton");
+
+let statusBox =
+    document.getElementById("status");
+
+
+// =====================================================
+// 選擇檔案
+// =====================================================
+
+fileInput.addEventListener(
+    "change",
+    function () {
+
+        if (this.files.length > 0) {
+
+            runButton.disabled = false;
+
+            showStatus(
+                "已選擇檔案：" +
+                this.files[0].name,
+                "success"
+            );
+
+        }
+
+    }
+);
+
+
+// =====================================================
+// 顯示訊息
+// =====================================================
+
+function showStatus(message, type) {
+
+    statusBox.textContent = message;
+
+    statusBox.className =
+        "status " + type;
+
+}
+
+
+// =====================================================
+// 解析時間
+// =====================================================
+
+function parseTimeRange(value) {
+
+    if (
+        value === null ||
+        value === undefined ||
+        value === ""
+    ) {
+
+        return null;
+
+    }
+
+
+    let text =
+        String(value).trim();
+
+
+    if (text === "") {
+        return null;
+    }
+
+
+    text =
+        text
+        .replace(/～/g, "-")
+        .replace(/~/g, "-");
+
+
+    if (!text.includes("-")) {
+        return null;
+    }
+
+
+    let parts =
+        text.split("-");
+
+
+    if (parts.length !== 2) {
+        return null;
+    }
+
+
+    let startText =
+        parts[0].trim();
+
+    let endText =
+        parts[1].trim();
+
+
+    let start =
+        parseTime(startText);
+
+    let end =
+        parseTime(endText);
+
+
+    if (
+        start === null ||
+        end === null
+    ) {
+
+        return null;
+
+    }
+
+
+    return {
+        start: start,
+        end: end
+    };
+
+}
+
+
+// =====================================================
+// 解析 HH:MM
+// =====================================================
+
+function parseTime(text) {
+
+    let match =
+        text.match(
+            /^(\d{1,2}):(\d{2})$/
+        );
+
+
+    if (!match) {
+        return null;
+    }
+
+
+    let hour =
+        Number(match[1]);
+
+    let minute =
+        Number(match[2]);
+
+
+    if (
+        hour < 0 ||
+        hour > 23 ||
+        minute < 0 ||
+        minute > 59
+    ) {
+
+        return null;
+
+    }
+
+
+    return {
+        hour: hour,
+        minute: minute
+    };
+
+}
+
+
+// =====================================================
+// 計算工作時數
+// =====================================================
+
+function calculateHours(start, end) {
+
+    let startMinutes =
+        start.hour * 60 +
+        start.minute;
+
+    let endMinutes =
+        end.hour * 60 +
+        end.minute;
+
+
+    return (
+        endMinutes -
+        startMinutes
+    ) / 60;
+
+}
+
+
+// =====================================================
+// 格式化時間
+// =====================================================
+
+function formatTime(time) {
+
+    return (
+        String(time.hour).padStart(2, "0") +
+        ":" +
+        String(time.minute).padStart(2, "0")
+    );
+
+}
+
+
+// =====================================================
+// 格式化日期
+// =====================================================
+
+function formatDate(value) {
+
+    // Excel 日期序號
+    if (
+        typeof value === "number"
+    ) {
+
+        let date =
+            XLSX.SSF.parse_date_code(
+                value
+            );
+
+        if (date) {
+
+            return (
+                String(date.m).padStart(2, "0") +
+                "/" +
+                String(date.d).padStart(2, "0")
+            );
+
+        }
+
+    }
+
+
+    let text =
+        String(value);
+
+
+    // 2026-11-01
+    let match =
+        text.match(
+            /(\d{4})[-/](\d{1,2})[-/](\d{1,2})/
+        );
+
+
+    if (match) {
+
+        return (
+            String(match[2]).padStart(2, "0") +
+            "/" +
+            String(match[3]).padStart(2, "0")
+        );
+
+    }
+
+
+    return text;
+
+}
+
+
+// =====================================================
+// 執行排班
+// =====================================================
+
+async function runSchedule() {
+
+    let file =
+        fileInput.files[0];
+
+
+    if (!file) {
+
+        showStatus(
+            "請先選擇 Excel 檔案。",
+            "error"
+        );
+
+        return;
+
+    }
+
+
+    let requiredPeople =
+        Number(
+            document.getElementById(
+                "requiredPeople"
+            ).value
+        );
+
+
+    if (
+        !requiredPeople ||
+        requiredPeople < 1
+    ) {
+
+        showStatus(
+            "每天需要人數必須至少為 1。",
+            "error"
+        );
+
+        return;
+
+    }
+
+
+    try {
+
+        showStatus(
+            "正在讀取 Excel...",
+            "success"
+        );
+
+
+        let arrayBuffer =
+            await file.arrayBuffer();
+
+
+        workbook =
+            XLSX.read(
+                arrayBuffer,
+                {
+                    type: "array"
+                }
+            );
+
+
+        let sheetName =
+            workbook.SheetNames[0];
+
+
+        let worksheet =
+            workbook.Sheets[sheetName];
+
+
+        originalData =
+            XLSX.utils.sheet_to_json(
+                worksheet,
+                {
+                    defval: ""
+                }
+            );
+
+
+        if (
+            originalData.length === 0
+        ) {
+
+            throw new Error(
+                "Excel 裡沒有資料。"
+            );
+
+        }
+
+
+        // -------------------------------------------------
+        // 找姓名欄
+        // -------------------------------------------------
+
+        if (
+            !originalData[0].hasOwnProperty(
+                "姓名"
+            )
+        ) {
+
+            throw new Error(
+                "找不到「姓名」欄位，請確認 Excel 第一列有「姓名」。"
+            );
+
+        }
+
+
+        // -------------------------------------------------
+        // 找日期欄位
+        // -------------------------------------------------
+
+        dateColumns =
+            Object.keys(
+                originalData[0]
+            ).filter(
+                key => key !== "姓名"
+            );
+
+
+        if (
+            dateColumns.length === 0
+        ) {
+
+            throw new Error(
+                "找不到日期欄位。"
+            );
+
+        }
+
+
+        // -------------------------------------------------
+        // 初始化
+        // -------------------------------------------------
+
+        schedule = [];
+
+        shortageList = [];
+
+        workDays = {};
+
+        workHours = {};
+
+
+        for (
+            let row of originalData
+        ) {
+
+            let name =
+                String(row["姓名"]).trim();
+
+
+            if (!name) {
+                continue;
+            }
+
+
+            workDays[name] = 0;
+
+            workHours[name] = 0;
+
+        }
+
+
+        // -------------------------------------------------
+        // 開始每天排班
+        // -------------------------------------------------
+
+        for (
+            let dateColumn of dateColumns
+        ) {
+
+            let candidates = [];
+
+
+            // ---------------------------------------------
+            // 找可以上班的人
+            // ---------------------------------------------
+
+            for (
+                let row of originalData
+            ) {
+
+                let name =
+                    String(
+                        row["姓名"]
+                    ).trim();
+
+
+                if (!name) {
+                    continue;
+                }
+
+
+                let value =
+                    row[dateColumn];
+
+
+                let parsed =
+                    parseTimeRange(
+                        value
+                    );
+
+
+                if (!parsed) {
+                    continue;
+                }
+
+
+                let start =
+                    parsed.start;
+
+                let end =
+                    parsed.end;
+
+
+                let startMinutes =
+                    start.hour * 60 +
+                    start.minute;
+
+                let endMinutes =
+                    end.hour * 60 +
+                    end.minute;
+
+
+                // 時間錯誤
+                if (
+                    startMinutes >=
+                    endMinutes
+                ) {
+
+                    console.warn(
+                        name +
+                        " 的 " +
+                        dateColumn +
+                        " 時間錯誤"
+                    );
+
+                    continue;
+
+                }
+
+
+                let hours =
+                    calculateHours(
+                        start,
+                        end
+                    );
+
+
+                candidates.push({
+
+                    name: name,
+
+                    date: dateColumn,
+
+                    start: start,
+
+                    end: end,
+
+                    hours: hours,
+
+                    workDays:
+                        workDays[name],
+
+                    workHours:
+                        workHours[name]
+
+                });
+
+            }
+
+
+            // ---------------------------------------------
+            // 工作天數少的人優先
+            // 再比較總工時
+            // ---------------------------------------------
+
+            candidates.sort(
+                function (a, b) {
+
+                    if (
+                        a.workDays !==
+                        b.workDays
+                    ) {
+
+                        return (
+                            a.workDays -
+                            b.workDays
+                        );
+
+                    }
+
+
+                    return (
+                        a.workHours -
+                        b.workHours
+                    );
+
+                }
+            );
+
+
+            // ---------------------------------------------
+            // 選人
+            // ---------------------------------------------
+
+            let selected =
+                candidates.slice(
+                    0,
+                    requiredPeople
+                );
+
+
+            // ---------------------------------------------
+            // 缺人
+            // ---------------------------------------------
+
+            if (
+                selected.length <
+                requiredPeople
+            ) {
+
+                shortageList.push({
+
+                    date: dateColumn,
+
+                    required:
+                        requiredPeople,
+
+                    actual:
+                        selected.length,
+
+                    shortage:
+                        requiredPeople -
+                        selected.length
+
+                });
+
+            }
+
+
+            // ---------------------------------------------
+            // 儲存排班
+            // ---------------------------------------------
+
+            for (
+                let person of selected
+            ) {
+
+                schedule.push({
+
+                    date:
+                        person.date,
+
+                    name:
+                        person.name,
+
+                    start:
+                        person.start,
+
+                    end:
+                        person.end,
+
+                    hours:
+                        person.hours
+
+                });
+
+
+                workDays[
+                    person.name
+                ]++;
+
+
+                workHours[
+                    person.name
+                ] += person.hours;
+
+            }
+
+        }
+
+
+        // =================================================
+        // 顯示結果
+        // =================================================
+
+        renderTotalSchedule();
+
+        renderEmployeeStats();
+
+        renderShortageRecords();
+
+
+        document.getElementById(
+            "resultSection"
+        ).style.display = "block";
+
+
+        showStatus(
+            "✓ 排班完成！共排出 " +
+            schedule.length +
+            " 筆班次。",
+            "success"
+        );
+
+
+    }
+    catch (error) {
+
+        console.error(error);
+
+
+        showStatus(
+            "排班失敗：" +
+            error.message,
+            "error"
+        );
+
+    }
+
+}
+
+
+// =====================================================
+// 取得排班時間
+// =====================================================
+
+function getScheduleTime(
+    name,
+    dateColumn
+) {
+
+    for (
+        let item of schedule
+    ) {
+
+        if (
+            item.name === name &&
+            item.date === dateColumn
+        ) {
+
+            return (
+                formatTime(item.start) +
+                "-" +
+                formatTime(item.end)
+            );
+
+        }
+
+    }
+
+
+    return null;
+
+}
+
+
+// =====================================================
+// 總排班表
+// =====================================================
+
+function renderTotalSchedule() {
+
+    let html = "<table>";
+
+
+    // -------------------------------------------------
+    // 標題
+    // -------------------------------------------------
+
+    html += "<thead>";
+
+    html += "<tr>";
+
+    html +=
+        "<th>姓名</th>";
+
+
+    for (
+        let dateColumn of dateColumns
+    ) {
+
+        html +=
+            "<th>" +
+            escapeHtml(
+                formatDate(dateColumn)
+            ) +
+            "</th>";
+
+    }
+
+
+    html += "</tr>";
+
+    html += "</thead>";
+
+
+    // -------------------------------------------------
+    // 員工
+    // -------------------------------------------------
+
+    html += "<tbody>";
+
+
+    for (
+        let row of originalData
+    ) {
+
+        let name =
+            String(
+                row["姓名"]
+            ).trim();
+
+
+        if (!name) {
+            continue;
+        }
+
+
+        html += "<tr>";
+
+
+        html +=
+            '<td class="name-cell">' +
+            escapeHtml(name) +
+            "</td>";
+
+
+        for (
+            let dateColumn of dateColumns
+        ) {
+
+            let time =
+                getScheduleTime(
+                    name,
+                    dateColumn
+                );
+
+
+            if (time) {
+
+                html +=
+                    '<td class="work-cell">' +
+                    escapeHtml(time) +
+                    "</td>";
+
+            }
+            else {
+
+                html +=
+                    '<td class="rest-cell">休</td>';
+
+            }
+
+        }
+
+
+        html += "</tr>";
+
+    }
+
+
+    html += "</tbody>";
+
+    html += "</table>";
+
+
+    document.getElementById(
+        "totalSchedule"
+    ).innerHTML = html;
+
+}
+
+
+// =====================================================
+// 員工統計
+// =====================================================
+
+function renderEmployeeStats() {
+
+    let html = "<table>";
+
+
+    html += "<thead>";
+
+    html += "<tr>";
+
+    html += "<th>姓名</th>";
+
+    html += "<th>工作天數</th>";
+
+    html += "<th>總工作時數</th>";
+
+    html += "</tr>";
+
+    html += "</thead>";
+
+
+    html += "<tbody>";
+
+
+    for (
+        let name in workDays
+    ) {
+
+        html += "<tr>";
+
+
+        html +=
+            "<td>" +
+            escapeHtml(name) +
+            "</td>";
+
+
+        html +=
+            "<td>" +
+            workDays[name] +
+            "</td>";
+
+
+        html +=
+            "<td>" +
+            workHours[name].toFixed(2) +
+            "</td>";
+
+
+        html += "</tr>";
+
+    }
+
+
+    html += "</tbody>";
+
+    html += "</table>";
+
+
+    document.getElementById(
+        "employeeStats"
+    ).innerHTML = html;
+
+}
+
+
+// =====================================================
+// 缺人紀錄
+// =====================================================
+
+function renderShortageRecords() {
+
+    let html = "<table>";
+
+
+    html += "<thead>";
+
+    html += "<tr>";
+
+    html += "<th>日期</th>";
+
+    html += "<th>需要人數</th>";
+
+    html += "<th>實際人數</th>";
+
+    html += "<th>缺少人數</th>";
+
+    html += "</tr>";
+
+    html += "</thead>";
+
+
+    html += "<tbody>";
+
+
+    if (
+        shortageList.length === 0
+    ) {
+
+        html += "<tr>";
+
+        html +=
+            '<td colspan="4">' +
+            "✓ 每天人數都足夠" +
+            "</td>";
+
+        html += "</tr>";
+
+    }
+    else {
+
+        for (
+            let item of shortageList
+        ) {
+
+            html += "<tr>";
+
+
+            html +=
+                "<td>" +
+                escapeHtml(
+                    formatDate(item.date)
+                ) +
+                "</td>";
+
+
+            html +=
+                "<td>" +
+                item.required +
+                "</td>";
+
+
+            html +=
+                "<td>" +
+                item.actual +
+                "</td>";
+
+
+            html +=
+                '<td class="shortage">' +
+                item.shortage +
+                "</td>";
+
+
+            html += "</tr>";
+
+        }
+
+    }
+
+
+    html += "</tbody>";
+
+    html += "</table>";
+
+
+    document.getElementById(
+        "shortageRecords"
+    ).innerHTML = html;
+
+}
+
+
+// =====================================================
+// 防止 HTML 注入
+// =====================================================
+
+function escapeHtml(value) {
+
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+
+}
+
+
+// =====================================================
+// 下載 Excel
+// =====================================================
+
+function downloadExcel() {
+
+    if (
+        schedule.length === 0
+    ) {
+
+        alert(
+            "請先執行自動排班。"
+        );
+
+        return;
+
+    }
+
+
+    let newWorkbook =
+        XLSX.utils.book_new();
+
+
+    // =================================================
+    // 工作表 1：總排班表
+    // =================================================
+
+    let totalData = [];
+
+
+    // 第一列
+    let header = ["姓名"];
+
+
+    for (
+        let dateColumn of dateColumns
+    ) {
+
+        header.push(
+            formatDate(dateColumn)
+        );
+
+    }
+
+
+    totalData.push(header);
+
+
+    // 員工
+    for (
+        let row of originalData
+    ) {
+
+        let name =
+            String(
+                row["姓名"]
+            ).trim();
+
+
+        if (!name) {
+            continue;
+        }
+
+
+        let rowData = [name];
+
+
+        for (
+            let dateColumn of dateColumns
+        ) {
+
+            let time =
+                getScheduleTime(
+                    name,
+                    dateColumn
+                );
+
+
+            rowData.push(
+                time || "休"
+            );
+
+        }
+
+
+        totalData.push(rowData);
+
+    }
+
+
+    let wsTotal =
+        XLSX.utils.aoa_to_sheet(
+            totalData
+        );
+
+
+    // 欄寬
+    wsTotal["!cols"] =
+        header.map(
+            function () {
+
+                return {
+                    wch: 16
+                };
+
+            }
+        );
+
+
+    wsTotal["!cols"][0] = {
+        wch: 12
+    };
+
+
+    XLSX.utils.book_append_sheet(
+        newWorkbook,
+        wsTotal,
+        "總排班表"
+    );
+
+
+    // =================================================
+    // 工作表 2：自動班表
+    // =================================================
+
+    let scheduleData = [
+
+        [
+            "日期",
+            "姓名",
+            "上班時間",
+            "工作時數"
+        ]
+
+    ];
+
+
+    for (
+        let item of schedule
+    ) {
+
+        scheduleData.push([
+
+            formatDate(item.date),
+
+            item.name,
+
+            formatTime(item.start) +
+            "-" +
+            formatTime(item.end),
+
+            item.hours
+
+        ]);
+
+    }
+
+
+    let wsSchedule =
+        XLSX.utils.aoa_to_sheet(
+            scheduleData
+        );
+
+
+    XLSX.utils.book_append_sheet(
+        newWorkbook,
+        wsSchedule,
+        "自動班表"
+    );
+
+
+    // =================================================
+    // 工作表 3：員工統計
+    // =================================================
+
+    let statsData = [
+
+        [
+            "姓名",
+            "工作天數",
+            "總工作時數"
+        ]
+
+    ];
+
+
+    for (
+        let name in workDays
+    ) {
+
+        statsData.push([
+
+            name,
+
+            workDays[name],
+
+            Number(
+                workHours[name].toFixed(2)
+            )
+
+        ]);
+
+    }
+
+
+    let wsStats =
+        XLSX.utils.aoa_to_sheet(
+            statsData
+        );
+
+
+    XLSX.utils.book_append_sheet(
+        newWorkbook,
+        wsStats,
+        "員工統計"
+    );
+
+
+    // =================================================
+    // 工作表 4：缺人紀錄
+    // =================================================
+
+    let shortageData = [
+
+        [
+            "日期",
+            "需要人數",
+            "實際人數",
+            "缺少人數"
+        ]
+
+    ];
+
+
+    for (
+        let item of shortageList
+    ) {
+
+        shortageData.push([
+
+            formatDate(item.date),
+
+            item.required,
+
+            item.actual,
+
+            item.shortage
+
+        ]);
+
+    }
+
+
+    if (
+        shortageList.length === 0
+    ) {
+
+        shortageData.push([
+            "每天人數都足夠",
+            "",
+            "",
+            ""
+        ]);
+
+    }
+
+
+    let wsShortage =
+        XLSX.utils.aoa_to_sheet(
+            shortageData
+        );
+
+
+    XLSX.utils.book_append_sheet(
+        newWorkbook,
+        wsShortage,
+        "缺人紀錄"
+    );
+
+
+    // =================================================
+    // 下載
+    // =================================================
+
+    XLSX.writeFile(
+        newWorkbook,
+        "排班結果.xlsx"
+    );
+
+}
+
+
+</script>
+
+
+</body>
+
+</html>
